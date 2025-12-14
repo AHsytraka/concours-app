@@ -1,0 +1,27 @@
+# ENI IA Services - Dependencies
+# ================================
+
+# Core Framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+pydantic>=2.0.0
+
+# HTTP Client
+requests>=2.31.0
+
+# ML Dependencies (for Classification)
+torch>=2.0.0
+transformers>=4.35.0
+pillow>=10.0.0
+
+# Training (optional)
+tqdm>=4.66.0
+
+# Development (optional)
+# pytest>=7.0.0
+# httpx>=0.25.0  # pour tests async
+
+# OCR (optional)
+# python-doctr>=0.7.0
+# tensorflow>=2.13.0

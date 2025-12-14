@@ -15,7 +15,9 @@ import {
   GraduationCap,
   MapPin,
   Info,
-  ClipboardList
+  ClipboardList,
+  Scale,
+  AlertTriangle
 } from 'lucide-react';
 import { format } from 'date-fns';
 import UniversityLayout from '../../components/layout/UniversityLayout';
@@ -302,6 +304,7 @@ const EventCreate = () => {
   const [decreeFile, setDecreeFile] = useState(null);
   const [subjects, setSubjects] = useState([{ name: '', coefficient: 1 }]);
   const [locations, setLocations] = useState(['']);
+  const [eliminatorySubjects, setEliminatorySubjects] = useState([]);
 
   const { 
     register, 
@@ -319,11 +322,28 @@ const EventCreate = () => {
       registrationFee: 0,
       examDate: '',
       examEndDate: '',
-      deadline: ''
+      deadline: '',
+      // Deliberation rules for CONTEST
+      noteEliminatoire: 5,
+      moyenneMinimum: 10,
+      criteresSpecifiques: '',
+      waitlistPercentage: 20,
+      // Selection criteria for SELECTION
+      criteresTexte: '',
+      minSelectionScore: 50
     }
   });
 
   const selectedEventType = watch('eventType');
+
+  // Toggle eliminatory subject
+  const toggleEliminatorySubject = (subjectName) => {
+    if (eliminatorySubjects.includes(subjectName)) {
+      setEliminatorySubjects(eliminatorySubjects.filter(s => s !== subjectName));
+    } else {
+      setEliminatorySubjects([...eliminatorySubjects, subjectName]);
+    }
+  };
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -380,13 +400,32 @@ const EventCreate = () => {
       formData.append('deadline', data.deadline);
       formData.append('eventType', data.eventType);
       
+      // Deliberation rules
+      const deliberationRules = {
+        eventType: data.eventType,
+        moyenneMinimum: data.moyenneMinimum,
+        nombrePlaces: data.maxRegistrations,
+        waitlistPercentage: data.waitlistPercentage
+      };
+
       // Only add exam fields for CONTEST type
       if (data.eventType === 'CONTEST') {
         formData.append('examDate', data.examDate);
         formData.append('examEndDate', data.examEndDate);
         formData.append('locations', JSON.stringify(locations.filter(l => l.trim())));
         formData.append('subjects', JSON.stringify(subjects.filter(s => s.name)));
+        
+        // Contest-specific deliberation rules
+        deliberationRules.noteEliminatoire = data.noteEliminatoire;
+        deliberationRules.criteresSpecifiques = data.criteresSpecifiques;
+        deliberationRules.matieresEliminatoires = eliminatorySubjects;
+      } else {
+        // Selection-specific criteria
+        deliberationRules.criteresTexte = data.criteresTexte;
+        deliberationRules.minSelectionScore = data.minSelectionScore;
       }
+      
+      formData.append('deliberationRules', JSON.stringify(deliberationRules));
       
       if (decreeFile) {
         formData.append('decreeFile', decreeFile);
@@ -616,6 +655,143 @@ const EventCreate = () => {
                 </AddButton>
               </FormSection>
             )}
+
+            {/* Deliberation Rules Section */}
+            <FormSection>
+              <SectionTitle>
+                <Scale size={20} />
+                Critères de délibération
+              </SectionTitle>
+
+              {selectedEventType === 'CONTEST' ? (
+                <>
+                  <FormRow $columns="1fr 1fr">
+                    <FormGroup>
+                      <Label>Note éliminatoire</Label>
+                      <Input
+                        type="number"
+                        step="0.5"
+                        {...register('noteEliminatoire')}
+                        placeholder="5"
+                      />
+                      <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                        Note en dessous de laquelle le candidat est éliminé
+                      </span>
+                    </FormGroup>
+
+                    <FormGroup>
+                      <Label>Moyenne minimum *</Label>
+                      <Input
+                        type="number"
+                        step="0.5"
+                        {...register('moyenneMinimum', { required: 'La moyenne minimum est requise' })}
+                        placeholder="10"
+                      />
+                      <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                        Moyenne requise pour être admis
+                      </span>
+                    </FormGroup>
+                  </FormRow>
+
+                  <FormRow>
+                    <FormGroup>
+                      <Label>% Liste d'attente</Label>
+                      <Input
+                        type="number"
+                        {...register('waitlistPercentage')}
+                        placeholder="20"
+                        min={0}
+                        max={100}
+                      />
+                      <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                        Pourcentage de candidats en liste d'attente
+                      </span>
+                    </FormGroup>
+                  </FormRow>
+
+                  {subjects.filter(s => s.name).length > 0 && (
+                    <FormGroup style={{ marginTop: '1rem' }}>
+                      <Label>
+                        <AlertTriangle size={16} style={{ marginRight: '0.5rem', color: '#f59e0b' }} />
+                        Matières éliminatoires
+                      </Label>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
+                        {subjects.filter(s => s.name).map((subject, index) => (
+                          <Button
+                            key={index}
+                            type="button"
+                            size="sm"
+                            variant={eliminatorySubjects.includes(subject.name) ? 'primary' : 'outline'}
+                            onClick={() => toggleEliminatorySubject(subject.name)}
+                          >
+                            {subject.name}
+                          </Button>
+                        ))}
+                      </div>
+                      <span style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.5rem', display: 'block' }}>
+                        Cliquez sur les matières où une note sous le seuil élimine le candidat
+                      </span>
+                    </FormGroup>
+                  )}
+
+                  <FormRow style={{ marginTop: '1rem' }}>
+                    <FormGroup>
+                      <Label>Critères spécifiques (optionnel)</Label>
+                      <TextArea
+                        {...register('criteresSpecifiques')}
+                        placeholder="Ex: Priorité aux candidats ayant plus de 12 en mathématiques, bonus pour les mentions..."
+                        style={{ minHeight: '80px' }}
+                      />
+                      <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                        Critères supplémentaires que l'IA appliquera lors de la délibération
+                      </span>
+                    </FormGroup>
+                  </FormRow>
+                </>
+              ) : (
+                <>
+                  <FormRow $columns="1fr 1fr">
+                    <FormGroup>
+                      <Label>Moyenne minimum *</Label>
+                      <Input
+                        type="number"
+                        step="0.5"
+                        {...register('moyenneMinimum', { required: 'La moyenne minimum est requise' })}
+                        placeholder="10"
+                      />
+                    </FormGroup>
+
+                    <FormGroup>
+                      <Label>Score minimum (%)</Label>
+                      <Input
+                        type="number"
+                        {...register('minSelectionScore')}
+                        placeholder="50"
+                        min={0}
+                        max={100}
+                      />
+                      <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                        Score minimum pour être sélectionné
+                      </span>
+                    </FormGroup>
+                  </FormRow>
+
+                  <FormRow style={{ marginTop: '1rem' }}>
+                    <FormGroup>
+                      <Label>Critères de sélection</Label>
+                      <TextArea
+                        {...register('criteresTexte')}
+                        placeholder="Ex: Bonne maîtrise des mathématiques, rigueur scientifique, expérience en programmation..."
+                        style={{ minHeight: '100px' }}
+                      />
+                      <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                        Décrivez les critères que l'IA utilisera pour évaluer les dossiers
+                      </span>
+                    </FormGroup>
+                  </FormRow>
+                </>
+              )}
+            </FormSection>
 
             <FormSection>
               <SectionTitle>

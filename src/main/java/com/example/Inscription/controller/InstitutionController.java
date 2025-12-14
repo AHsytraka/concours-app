@@ -4,6 +4,7 @@ import com.example.Inscription.model.*;
 import com.example.Inscription.repository.*;
 import com.example.Inscription.service.EventService;
 import com.example.Inscription.service.MailService;
+import com.example.Inscription.service.ai.IADeliberationClient;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
@@ -40,9 +41,11 @@ public class InstitutionController {
     private final EventRegistrationRepository registrationRepository;
     private final ExamResultRepository examResultRepository;
     private final SubjectRepository subjectRepository;
+    private final DeliberationRuleRepository deliberationRuleRepository;
     private final EventService eventService;
     private final MailService mailService;
     private final ObjectMapper objectMapper;
+    private final IADeliberationClient iaDeliberationClient;
 
     // ==================== PROFILE ====================
 
@@ -208,6 +211,7 @@ public class InstitutionController {
             @RequestParam(value = "locations", required = false) String locationsJson,
             @RequestParam(value = "eventType", required = false, defaultValue = "CONTEST") String eventType,
             @RequestParam(value = "subjects", required = false) String subjectsJson,
+            @RequestParam(value = "deliberationRules", required = false) String deliberationRulesJson,
             @RequestParam(value = "decreeFile", required = false) MultipartFile decreeFile) {
         try {
             User user = getCurrentUser(authentication);
@@ -267,6 +271,62 @@ public class InstitutionController {
                         subjectRepository.save(subject);
                     }
                 }
+            }
+
+            // Save deliberation rules
+            if (deliberationRulesJson != null && !deliberationRulesJson.isEmpty()) {
+                Map<String, Object> rulesData = objectMapper.readValue(deliberationRulesJson, 
+                        new TypeReference<Map<String, Object>>() {});
+                
+                DeliberationRule rule = new DeliberationRule();
+                rule.setInstitution(institution);
+                rule.setEventType(EventType.valueOf(eventType));
+                rule.setRuleName("Règles " + name);
+                
+                // Common rules
+                if (rulesData.get("moyenneMinimum") != null) {
+                    rule.setMinAverage(Double.valueOf(rulesData.get("moyenneMinimum").toString()));
+                    rule.setPassingScore(Double.valueOf(rulesData.get("moyenneMinimum").toString()));
+                }
+                if (rulesData.get("waitlistPercentage") != null) {
+                    rule.setMaxWaitlistPercentage(Integer.valueOf(rulesData.get("waitlistPercentage").toString()));
+                }
+                
+                // Contest-specific rules
+                if ("CONTEST".equals(eventType)) {
+                    Map<String, Object> customCriteria = new HashMap<>();
+                    if (rulesData.get("noteEliminatoire") != null) {
+                        customCriteria.put("note_eliminatoire", Double.valueOf(rulesData.get("noteEliminatoire").toString()));
+                    }
+                    if (rulesData.get("criteresSpecifiques") != null) {
+                        customCriteria.put("criteres_specifiques", rulesData.get("criteresSpecifiques"));
+                    }
+                    if (rulesData.get("matieresEliminatoires") != null) {
+                        customCriteria.put("matieres_eliminatoires", rulesData.get("matieresEliminatoires"));
+                    }
+                    customCriteria.put("nombre_places", maxRegistrations);
+                    rule.setCustomCriteria(objectMapper.writeValueAsString(customCriteria));
+                    rule.setUseWeightedAverage(true);
+                } else {
+                    // Selection-specific rules
+                    Map<String, Object> selectionCriteria = new HashMap<>();
+                    if (rulesData.get("criteresTexte") != null) {
+                        selectionCriteria.put("criteres_texte", rulesData.get("criteresTexte"));
+                    }
+                    if (rulesData.get("minSelectionScore") != null) {
+                        rule.setMinSelectionScore(Double.valueOf(rulesData.get("minSelectionScore").toString()));
+                    }
+                    selectionCriteria.put("nombre_places", maxRegistrations);
+                    rule.setSelectionCriteria(objectMapper.writeValueAsString(selectionCriteria));
+                    rule.setUseWeightedAverage(false);
+                }
+                
+                rule.setIsActive(true);
+                DeliberationRule savedRule = deliberationRuleRepository.save(rule);
+                
+                // Link the rule to the event
+                savedEvent.setDeliberationRule(savedRule);
+                eventRepository.save(savedEvent);
             }
 
             return ResponseEntity.status(HttpStatus.CREATED).body(mapEventToDto(savedEvent));
@@ -630,7 +690,7 @@ public class InstitutionController {
     // ==================== DELIBERATION & RESULTS ====================
 
     @PostMapping("/events/{eventId}/deliberate")
-    @Operation(summary = "Process deliberation for an event")
+    @Operation(summary = "Process deliberation for an event using IA service")
     public ResponseEntity<?> deliberate(Authentication authentication, @PathVariable Long eventId) {
         try {
             User user = getCurrentUser(authentication);
@@ -641,20 +701,113 @@ public class InstitutionController {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Unauthorized");
             }
 
+            if (event.getEventType() == EventType.CONTEST) {
+                // Get all exam results with grades
+                List<ExamResult> examResults = examResultRepository.findByEventIdOrderByAverageDesc(eventId);
+                
+                // Build candidates list for IA service
+                List<Map<String, Object>> candidatsWithNotes = new ArrayList<>();
+                for (ExamResult result : examResults) {
+                    Map<String, Object> candidat = new HashMap<>();
+                    candidat.put("id", result.getUser().getId().toString());
+                    candidat.put("nom", result.getUser().getLastName());
+                    candidat.put("prenom", result.getUser().getFirstName());
+                    
+                    // Parse grades from scoreData
+                    if (result.getScoreData() != null) {
+                        try {
+                            Map<String, Object> notes = objectMapper.readValue(result.getScoreData(), Map.class);
+                            candidat.put("notes", notes);
+                        } catch (Exception e) {
+                            candidat.put("notes", new HashMap<>());
+                        }
+                    }
+                    candidatsWithNotes.add(candidat);
+                }
+                
+                // Call IA service for deliberation
+                Map<String, Object> iaResponse = iaDeliberationClient.deliberateContest(eventId, candidatsWithNotes);
+                
+                // Save results back to database
+                iaDeliberationClient.saveDeliberationResults(eventId, iaResponse);
+                
+                return ResponseEntity.ok(Map.of(
+                    "message", "Délibération IA terminée",
+                    "total_candidats", iaResponse.get("total_candidats"),
+                    "nombre_admis", iaResponse.get("nombre_admis"),
+                    "nombre_refuses", iaResponse.get("nombre_refuses"),
+                    "nombre_liste_attente", iaResponse.get("nombre_liste_attente")
+                ));
+                
+            } else {
+                // SELECTION type - use file analysis
+                Map<String, Object> iaResponse = iaDeliberationClient.analyzeSelection(eventId);
+                
+                // Update registration statuses based on IA response
+                List<Map<String, Object>> admissibles = (List<Map<String, Object>>) iaResponse.get("dossiers_admissibles");
+                List<Map<String, Object>> nonAdmissibles = (List<Map<String, Object>>) iaResponse.get("dossiers_non_admissibles");
+                
+                if (admissibles != null) {
+                    for (Map<String, Object> dossier : admissibles) {
+                        Long regId = Long.valueOf(dossier.get("candidat_id").toString());
+                        registrationRepository.findById(regId).ifPresent(reg -> {
+                            reg.setStatus(RegistrationStatus.APPROVED);
+                            registrationRepository.save(reg);
+                        });
+                    }
+                }
+                
+                if (nonAdmissibles != null) {
+                    for (Map<String, Object> dossier : nonAdmissibles) {
+                        Long regId = Long.valueOf(dossier.get("candidat_id").toString());
+                        registrationRepository.findById(regId).ifPresent(reg -> {
+                            reg.setStatus(RegistrationStatus.REJECTED);
+                            registrationRepository.save(reg);
+                        });
+                    }
+                }
+                
+                return ResponseEntity.ok(Map.of(
+                    "message", "Sélection IA terminée",
+                    "total_dossiers", iaResponse.get("total_dossiers"),
+                    "nombre_admissibles", iaResponse.get("nombre_admissibles"),
+                    "nombre_non_admissibles", iaResponse.get("nombre_non_admissibles")
+                ));
+            }
+            
+        } catch (Exception e) {
+            log.error("Error during IA deliberation, falling back to basic deliberation", e);
+            
+            // Fallback to basic deliberation if IA service fails
+            return deliberateBasic(authentication, eventId);
+        }
+    }
+    
+    /**
+     * Basic deliberation without IA service (fallback)
+     */
+    private ResponseEntity<?> deliberateBasic(Authentication authentication, Long eventId) {
+        try {
+            Event event = eventRepository.findById(eventId)
+                    .orElseThrow(() -> new IllegalArgumentException("Event not found"));
+
             List<ExamResult> results = examResultRepository.findByEventIdOrderByAverageDesc(eventId);
             
-            // Get max admissions (from event or default)
-            int maxAdmissions = 100; // Default, should come from event
+            // Get deliberation rule
+            DeliberationRule rules = event.getDeliberationRule();
+            double passingScore = rules != null ? rules.getPassingScore() : 10.0;
+            int maxAdmissions = 100; // Default
 
             int rank = 1;
             for (ExamResult result : results) {
                 result.setRanking(rank);
                 
-                if (result.getAverage() != null && result.getAverage() >= 10) {
+                if (result.getAverage() != null && result.getAverage() >= passingScore) {
                     if (rank <= maxAdmissions) {
                         result.setResultStatus(ResultStatus.PASSED);
                     } else {
                         result.setResultStatus(ResultStatus.WAITING_LIST);
+                        result.setIsOnWaitlist(true);
                     }
                 } else {
                     result.setResultStatus(ResultStatus.FAILED);
@@ -664,9 +817,9 @@ public class InstitutionController {
                 rank++;
             }
 
-            return ResponseEntity.ok(Map.of("message", "Deliberation completed"));
+            return ResponseEntity.ok(Map.of("message", "Délibération basique terminée (sans IA)"));
         } catch (Exception e) {
-            log.error("Error during deliberation", e);
+            log.error("Error during basic deliberation", e);
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }

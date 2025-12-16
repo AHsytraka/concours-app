@@ -52,15 +52,18 @@ export const authService = {
 // Event services
 export const eventService = {
   getAll: (params) => api.get('/events', { params }),
-  getById: (id) => api.get(`/events/${id}`),
+  getById: (id) => api.get(`/institution/events/${id}`),
   create: (data) => api.post('/institution/events', data, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
-  update: (id, data) => api.put(`/institution/events/${id}`, data),
+  update: (id, data) => api.put(`/institution/events/${id}`, data, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
   delete: (id) => api.delete(`/institution/events/${id}`),
   getRegistrations: (eventId) => api.get(`/institution/events/${eventId}/registrations`),
   publishResults: (eventId, results) => api.post(`/institution/events/${eventId}/results`, results),
   getMyEvents: () => api.get('/institution/events'),
+  toggleRegistrations: (eventId) => api.put(`/institution/events/${eventId}/toggle-registrations`),
 };
 
 // Registration services
@@ -116,7 +119,7 @@ export const institutionService = {
 
 // Results services
 export const resultsService = {
-  getEventResults: (eventId) => api.get(`/events/${eventId}/results`),
+  getEventResults: (eventId) => api.get(`/institution/events/${eventId}/results`),
   enterGrades: (eventId, grades) => api.post(`/institution/events/${eventId}/grades`, grades),
   deliberate: (eventId) => api.post(`/institution/events/${eventId}/deliberate`),
   publishResults: (eventId) => api.post(`/institution/events/${eventId}/publish`),

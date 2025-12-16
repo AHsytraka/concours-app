@@ -39,6 +39,11 @@ public class EventRegistrationService {
             throw new IllegalStateException("Registration period is not open");
         }
         
+        // Check if registrations are paused
+        if (!event.getRegistrationsOpen()) {
+            throw new IllegalStateException("Registrations are temporarily paused for this event");
+        }
+        
         // Check if user's BAC series is eligible
         if (!event.getEligibleSeries().contains(user.getBacSeries())) {
             throw new IllegalArgumentException("Your BAC series is not eligible for this event");

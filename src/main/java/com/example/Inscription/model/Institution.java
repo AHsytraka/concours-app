@@ -7,11 +7,11 @@ import java.util.*;
 
 @Entity
 @Table(name = "institutions")
-@Data
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(exclude = {"users", "events"})
 public class Institution {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -52,6 +52,15 @@ public class Institution {
     
     @Column
     private String logo;
+    
+    @Column(name = "authorization_file")
+    private byte[] authorizationFile;
+    
+    @Column(name = "authorization_filename")
+    private String authorizationFilename;
+    
+    @Column(name = "is_authorization_verified", nullable = false)
+    private Boolean isAuthorizationVerified = false;
     
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;

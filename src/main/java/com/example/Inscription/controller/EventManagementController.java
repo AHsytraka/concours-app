@@ -40,18 +40,11 @@ public class EventManagementController {
         return ResponseEntity.ok(events);
     }
     
-    @GetMapping("/{eventId}")
-    @Operation(summary = "Get event details", description = "Get detailed information about an event")
-    public ResponseEntity<?> getEventDetails(@PathVariable Long eventId) {
-        return eventRepository.findById(eventId)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
-    }
-    
     @GetMapping("/{eventId}/registration-count")
     @Operation(summary = "Get registration count", description = "Get number of registrations for an event")
     public ResponseEntity<?> getRegistrationCount(@PathVariable Long eventId) {
         long count = registrationRepository.findByEventId(eventId).size();
         return ResponseEntity.ok("Total registrations: " + count);
     }
+
 }

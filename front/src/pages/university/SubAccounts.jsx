@@ -9,7 +9,8 @@ import {
   Key,
   Shield,
   Clock,
-  X
+  X,
+  AlertCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -272,6 +273,80 @@ const FormGroup = styled.div`
       outline: none;
       border-color: ${({ theme }) => theme.colors.primary};
     }
+
+    &.error {
+      border-color: ${({ theme }) => theme.colors.error};
+      background: ${({ theme }) => `${theme.colors.error}05`};
+    }
+  }
+`;
+
+const ErrorText = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.xs};
+  font-size: ${({ theme }) => theme.fontSizes.xs};
+  color: ${({ theme }) => theme.colors.error};
+  margin-top: ${({ theme }) => theme.spacing.xs};
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+`;
+
+const PhoneInputWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+`;
+
+const PhoneInputLabel = styled.label`
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  font-weight: ${({ theme }) => theme.fontWeights.medium};
+  color: ${({ theme }) => theme.colors.text};
+`;
+
+const PhoneInputContainer = styled.div`
+  display: flex;
+  align-items: center;
+  border: 1px solid ${({ $hasError }) => ($hasError ? '#ef4444' : '#e5e7eb')};
+  border-radius: ${({ theme }) => theme.radii.md};
+  overflow: hidden;
+  transition: all 0.2s;
+  
+  &:focus-within {
+    border-color: ${({ theme }) => theme.colors.primary};
+    box-shadow: 0 0 0 2px ${({ theme }) => `${theme.colors.primary}20`};
+  }
+`;
+
+const PhonePrefix = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: ${({ theme }) => theme.colors.backgroundAlt};
+  border-right: 1px solid #e5e7eb;
+  color: ${({ theme }) => theme.colors.textLight};
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  font-weight: ${({ theme }) => theme.fontWeights.medium};
+  white-space: nowrap;
+`;
+
+const PhoneInput = styled.input`
+  flex: 1;
+  padding: 10px 12px;
+  border: none;
+  outline: none;
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  color: ${({ theme }) => theme.colors.text};
+  background: transparent;
+  letter-spacing: 1px;
+  
+  &::placeholder {
+    color: ${({ theme }) => theme.colors.textLight};
+    letter-spacing: 0;
   }
 `;
 
@@ -308,8 +383,60 @@ const SubAccounts = () => {
     phone: '',
     password: ''
   });
+  const [errors, setErrors] = useState({});
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Validation regex patterns
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const phoneRegex = /^\d{2}\s?\d{2}\s?\d{3}\s?\d{2}$/;
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/;
+
+  const validateForm = () => {
+    const newErrors = {};
+
+    // First name validation
+    if (!formData.firstName?.trim()) {
+      newErrors.firstName = 'Le prénom est requis';
+    } else if (formData.firstName.trim().length < 2) {
+      newErrors.firstName = 'Le prénom doit contenir au moins 2 caractères';
+    }
+
+    // Last name validation
+    if (!formData.lastName?.trim()) {
+      newErrors.lastName = 'Le nom est requis';
+    } else if (formData.lastName.trim().length < 2) {
+      newErrors.lastName = 'Le nom doit contenir au moins 2 caractères';
+    }
+
+    // Email validation
+    if (!formData.email?.trim()) {
+      newErrors.email = 'L\'email est requis';
+    } else if (!emailRegex.test(formData.email)) {
+      newErrors.email = 'Adresse email invalide';
+    }
+
+    // Phone validation
+    if (formData.phone?.trim()) {
+      if (!phoneRegex.test(formData.phone)) {
+        newErrors.phone = 'Numéro de téléphone invalide (minimum 8 caractères)';
+      }
+    }
+
+    // Password validation (only for new accounts or if password is being changed)
+    if (!editingAccount || formData.password) {
+      if (!formData.password?.trim()) {
+        newErrors.password = 'Le mot de passe est requis';
+      } else if (formData.password.length < 8) {
+        newErrors.password = 'Le mot de passe doit contenir au moins 8 caractères';
+      } else if (!passwordRegex.test(formData.password)) {
+        newErrors.password = 'Le mot de passe doit contenir au moins une majuscule, une minuscule et un chiffre';
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   useEffect(() => {
     fetchAccounts();
@@ -355,22 +482,24 @@ const SubAccounts = () => {
     setShowModal(false);
     setEditingAccount(null);
     setError('');
+    setErrors({});
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    // Validate form
+    if (!validateForm()) {
+      return;
+    }
+
     setSaving(true);
 
     try {
       if (editingAccount) {
         await api.put(`/institution/subaccounts/${editingAccount.id}`, formData);
       } else {
-        if (!formData.password) {
-          setError('Le mot de passe est requis pour créer un nouveau compte');
-          setSaving(false);
-          return;
-        }
         await api.post('/institution/subaccounts', formData);
       }
       handleCloseModal();
@@ -534,8 +663,15 @@ const SubAccounts = () => {
                   type="text"
                   value={formData.firstName}
                   onChange={e => setFormData({ ...formData, firstName: e.target.value })}
-                  required
+                  className={errors.firstName ? 'error' : ''}
+                  placeholder="Prénom du gestionnaire"
                 />
+                {errors.firstName && (
+                  <ErrorText>
+                    <AlertCircle />
+                    {errors.firstName}
+                  </ErrorText>
+                )}
               </FormGroup>
 
               <FormGroup>
@@ -544,8 +680,15 @@ const SubAccounts = () => {
                   type="text"
                   value={formData.lastName}
                   onChange={e => setFormData({ ...formData, lastName: e.target.value })}
-                  required
+                  className={errors.lastName ? 'error' : ''}
+                  placeholder="Nom de famille"
                 />
+                {errors.lastName && (
+                  <ErrorText>
+                    <AlertCircle />
+                    {errors.lastName}
+                  </ErrorText>
+                )}
               </FormGroup>
 
               <FormGroup>
@@ -554,19 +697,49 @@ const SubAccounts = () => {
                   type="email"
                   value={formData.email}
                   onChange={e => setFormData({ ...formData, email: e.target.value })}
-                  required
+                  className={errors.email ? 'error' : ''}
+                  placeholder="email@exemple.mg"
                   disabled={!!editingAccount}
                 />
+                {errors.email && (
+                  <ErrorText>
+                    <AlertCircle />
+                    {errors.email}
+                  </ErrorText>
+                )}
               </FormGroup>
 
-              <FormGroup>
-                <label>Téléphone</label>
-                <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                />
-              </FormGroup>
+              <PhoneInputWrapper>
+                <PhoneInputLabel>Téléphone</PhoneInputLabel>
+                <PhoneInputContainer $hasError={!!errors.phone}>
+                  <PhonePrefix>+261</PhonePrefix>
+                  <PhoneInput
+                    type="tel"
+                    value={formData.phone}
+                    placeholder="32 11 234 56"
+                    maxLength={12}
+                    onChange={(e) => {
+                      let value = e.target.value.replace(/\D/g, '');
+                      if (value.length > 9) value = value.slice(0, 9);
+                      if (value.length > 7) {
+                        value = value.slice(0, 2) + ' ' + value.slice(2, 4) + ' ' + value.slice(4, 7) + ' ' + value.slice(7);
+                      } else if (value.length > 4) {
+                        value = value.slice(0, 2) + ' ' + value.slice(2, 4) + ' ' + value.slice(4);
+                      } else if (value.length > 2) {
+                        value = value.slice(0, 2) + ' ' + value.slice(2);
+                      }
+                      setFormData({ ...formData, phone: value });
+                    }}
+                    className={errors.phone ? 'error' : ''}
+                  />
+                </PhoneInputContainer>
+                {errors.phone && (
+                  <ErrorText>
+                    <AlertCircle />
+                    {errors.phone}
+                  </ErrorText>
+                )}
+              </PhoneInputWrapper>
 
               <FormGroup>
                 <label>{editingAccount ? 'Nouveau mot de passe (laisser vide pour ne pas changer)' : 'Mot de passe *'}</label>
@@ -574,8 +747,15 @@ const SubAccounts = () => {
                   type="password"
                   value={formData.password}
                   onChange={e => setFormData({ ...formData, password: e.target.value })}
-                  required={!editingAccount}
+                  className={errors.password ? 'error' : ''}
+                  placeholder={editingAccount ? 'Laisser vide pour conserver le mot de passe' : 'Minimum 8 caractères'}
                 />
+                {errors.password && (
+                  <ErrorText>
+                    <AlertCircle />
+                    {errors.password}
+                  </ErrorText>
+                )}
               </FormGroup>
 
               <ModalActions>

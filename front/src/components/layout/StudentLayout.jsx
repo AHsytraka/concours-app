@@ -300,6 +300,7 @@ const StudentLayout = ({ children }) => {
 
   const navLinks = [
     { path: '/student', label: 'Tableau de bord', icon: Home },
+    { path: '/student/registrations', label: 'Concours', icon: Calendar },
     { path: '/student/profile', label: 'Mon profil', icon: User }
   ];
 

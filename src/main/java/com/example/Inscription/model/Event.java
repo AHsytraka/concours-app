@@ -1,5 +1,7 @@
 package com.example.Inscription.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -29,6 +31,7 @@ public class Event {
     
     @ManyToOne(optional = false)
     @JoinColumn(name = "institution_id")
+    @JsonIgnoreProperties({"events", "users"})
     private Institution institution;
     
     @Column(name = "registration_start", nullable = false)
@@ -61,7 +64,8 @@ public class Event {
     @Enumerated(EnumType.STRING)
     private Set<BacSeries> eligibleSeries = new HashSet<>();
     
-    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonManagedReference("event-subjects")
     private Set<Subject> subjects = new HashSet<>();
     
     @OneToOne(cascade = CascadeType.ALL)
@@ -72,20 +76,32 @@ public class Event {
     @JoinColumn(name = "summons_template_id")
     private SummonsTemplate summonsTemplate;
     
-    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnoreProperties({"event", "user"})
     private Set<EventRegistration> registrations = new HashSet<>();
     
-    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonIgnoreProperties({"event"})
     private Set<RegistrationNumber> registrationNumbers = new HashSet<>();
     
     @ManyToOne
     @JoinColumn(name = "deliberation_rule_id")
+    @JsonIgnoreProperties({"institution"})
     private DeliberationRule deliberationRule;
     
     @ElementCollection
     @CollectionTable(name = "event_locations", joinColumns = @JoinColumn(name = "event_id"))
     @Column(name = "location")
     private List<String> locations = new ArrayList<>();
+    
+    @Column(name = "max_admissions")
+    private Integer maxAdmissions; // Nombre de places (étudiants admis après délibération)
+    
+    @Column(name = "registration_fee")
+    private Double registrationFee; // Frais d'inscription en Ariary
+    
+    @Column(name = "level")
+    private String level; // L1, L2, L3, M1, M2
     
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
@@ -95,4 +111,7 @@ public class Event {
     
     @Column(name = "updated_at")
     private LocalDateTime updatedAt = LocalDateTime.now();
+    
+    @Column(name = "registrations_open", nullable = false)
+    private Boolean registrationsOpen = true;
 }

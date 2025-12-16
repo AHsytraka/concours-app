@@ -344,15 +344,20 @@ const UniversityRegister = () => {
   const nextStep = async () => {
     let isValid = false;
     
+    console.log('nextStep called, current step:', step);
+    
     if (step === 1) {
       isValid = await trigger(['institutionName', 'institutionType', 'registrationNumber', 'address', 'city', 'phone']);
     } else if (step === 2) {
       isValid = await trigger(['adminFirstName', 'adminLastName', 'adminEmail', 'adminPhone', 'password', 'confirmPassword']);
     }
 
+    console.log('isValid:', isValid, 'advancing to step:', step + 1);
+    
     if (isValid) {
       // Only advance to next step, don't submit yet
       setStep(step + 1);
+      console.log('Step set to:', step + 1);
     }
   };
 
@@ -360,7 +365,26 @@ const UniversityRegister = () => {
     setStep(step - 1);
   };
 
+  // Prevent Enter key from submitting form on steps 1 and 2
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && step < 3) {
+      e.preventDefault();
+      nextStep();
+    }
+  };
+
   const onSubmit = async (data) => {
+    // Only allow submission at step 3
+    if (step !== 3) {
+      console.log('Blocked submission - not at step 3, current step:', step);
+      return;
+    }
+    if (!authorizationDoc) {
+      setError("Le document d'autorisation est requis.");
+      return;
+    }
+    console.log('onSubmit called! Current step:', step);
+    console.log('Data:', data);
     setIsLoading(true);
     setError(null);
 
@@ -451,7 +475,7 @@ const UniversityRegister = () => {
 
         <FormCard>
           <Card.Body>
-            <Form onSubmit={handleSubmit(onSubmit)}>
+            <Form onSubmit={handleSubmit(onSubmit)} onKeyDown={handleKeyDown}>
               {/* Step 1: Institution Information */}
               {step === 1 && (
                 <FormSection>
@@ -697,12 +721,15 @@ const UniversityRegister = () => {
                     de votre compte. Assurez-vous de fournir des documents lisibles et à jour.
                   </Alert>
 
+
                   <FileUpload
-                    label="Autorisation d'exercice / Agrément (optionnel)"
+                    label="Autorisation d'exercice / Agrément *"
                     accept=".pdf,.jpg,.jpeg,.png"
-                    hint="Document officiel attestant de l'autorisation d'exercer (PDF, JPG, PNG) - Peut être fourni ultérieurement"
+                    hint="Document officiel attestant de l'autorisation d'exercer (PDF, JPG, PNG)"
                     value={authorizationDoc}
                     onChange={setAuthorizationDoc}
+                    required
+                    error={error && error.includes('autorisation') ? error : undefined}
                   />
 
                   <Alert variant="info">

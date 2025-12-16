@@ -1,5 +1,6 @@
 package com.example.Inscription.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -18,10 +19,12 @@ public class EventRegistration {
     
     @ManyToOne(optional = false)
     @JoinColumn(name = "user_id")
+    @JsonIgnoreProperties({"registrations", "institution", "password"})
     private User user;
     
     @ManyToOne(optional = false)
     @JoinColumn(name = "event_id")
+    @JsonIgnoreProperties({"registrations", "registrationNumbers"})
     private Event event;
     
     @Enumerated(EnumType.STRING)

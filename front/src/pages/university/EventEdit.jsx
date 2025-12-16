@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { 
   Calendar, 
@@ -17,7 +17,8 @@ import {
   Info,
   ClipboardList,
   Scale,
-  AlertTriangle
+  AlertTriangle,
+  Loader as LoaderIcon
 } from 'lucide-react';
 import { format } from 'date-fns';
 import UniversityLayout from '../../components/layout/UniversityLayout';
@@ -131,93 +132,6 @@ const TextArea = styled.textarea`
   }
 `;
 
-const ErrorText = styled.span`
-  font-size: ${({ theme }) => theme.fontSizes.xs};
-  color: ${({ theme }) => theme.colors.error};
-`;
-
-const FileUploadArea = styled.div`
-  border: 2px dashed ${({ theme, $hasFile }) => $hasFile ? theme.colors.success : theme.colors.border};
-  border-radius: ${({ theme }) => theme.radii.lg};
-  padding: ${({ theme }) => theme.spacing.xl};
-  text-align: center;
-  cursor: pointer;
-  transition: all ${({ theme }) => theme.transitions.fast};
-  background: ${({ theme, $hasFile }) => $hasFile ? `${theme.colors.success}10` : theme.colors.backgroundAlt};
-
-  &:hover {
-    border-color: ${({ theme }) => theme.colors.primary};
-    background: ${({ theme }) => theme.colors.primaryLight}10;
-  }
-
-  input {
-    display: none;
-  }
-`;
-
-const FileUploadIcon = styled.div`
-  width: 48px;
-  height: 48px;
-  margin: 0 auto ${({ theme }) => theme.spacing.md};
-  border-radius: 50%;
-  background: ${({ theme }) => theme.colors.primary}15;
-  color: ${({ theme }) => theme.colors.primary};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`;
-
-const FileUploadText = styled.div`
-  h4 {
-    font-size: ${({ theme }) => theme.fontSizes.md};
-    font-weight: ${({ theme }) => theme.fontWeights.medium};
-    color: ${({ theme }) => theme.colors.text};
-    margin: 0 0 ${({ theme }) => theme.spacing.xs};
-  }
-
-  p {
-    font-size: ${({ theme }) => theme.fontSizes.sm};
-    color: ${({ theme }) => theme.colors.textLight};
-    margin: 0;
-  }
-`;
-
-const UploadedFile = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: ${({ theme }) => theme.spacing.md};
-  background: ${({ theme }) => theme.colors.backgroundAlt};
-  border-radius: ${({ theme }) => theme.radii.md};
-  margin-top: ${({ theme }) => theme.spacing.md};
-`;
-
-const FileName = styled.span`
-  display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing.sm};
-  font-size: ${({ theme }) => theme.fontSizes.sm};
-  color: ${({ theme }) => theme.colors.text};
-
-  svg {
-    color: ${({ theme }) => theme.colors.primary};
-  }
-`;
-
-const RemoveFileButton = styled.button`
-  padding: ${({ theme }) => theme.spacing.xs};
-  color: ${({ theme }) => theme.colors.error};
-  border-radius: ${({ theme }) => theme.radii.sm};
-
-  &:hover {
-    background: ${({ theme }) => theme.colors.error}15;
-  }
-`;
-
-const SubjectsSection = styled.div`
-  margin-top: ${({ theme }) => theme.spacing.lg};
-`;
-
 const SubjectsList = styled.div`
   display: flex;
   flex-direction: column;
@@ -240,44 +154,13 @@ const AddButton = styled.button`
   font-weight: ${({ theme }) => theme.fontWeights.medium};
   border-radius: ${({ theme }) => theme.radii.md};
   transition: all ${({ theme }) => theme.transitions.fast};
+  background: transparent;
+  border: none;
+  cursor: pointer;
 
   &:hover {
     background: ${({ theme }) => theme.colors.primaryLight}20;
   }
-`;
-
-const SeriesGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: ${({ theme }) => theme.spacing.md};
-  margin-top: ${({ theme }) => theme.spacing.md};
-`;
-
-const SeriesCheckbox = styled.label`
-  display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.spacing.sm};
-  padding: ${({ theme }) => theme.spacing.md};
-  border: 2px solid ${({ theme, $checked }) => $checked ? theme.colors.primary : theme.colors.border};
-  border-radius: ${({ theme }) => theme.radii.md};
-  background: ${({ theme, $checked }) => $checked ? `${theme.colors.primary}10` : 'transparent'};
-  cursor: pointer;
-  transition: all ${({ theme }) => theme.transitions.fast};
-
-  &:hover {
-    border-color: ${({ theme }) => theme.colors.primary};
-    background: ${({ theme }) => theme.colors.primary}10;
-  }
-
-  input {
-    cursor: pointer;
-  }
-`;
-
-const SeriesLabel = styled.span`
-  font-size: ${({ theme }) => theme.fontSizes.sm};
-  font-weight: ${({ theme }) => theme.fontWeights.medium};
-  color: ${({ theme }) => theme.colors.text};
 `;
 
 const Sidebar = styled.div`
@@ -325,6 +208,40 @@ const ActionButtons = styled.div`
   margin-top: ${({ theme }) => theme.spacing.xl};
 `;
 
+const SeriesGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: ${({ theme }) => theme.spacing.md};
+  margin-top: ${({ theme }) => theme.spacing.md};
+`;
+
+const SeriesCheckbox = styled.label`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.sm};
+  padding: ${({ theme }) => theme.spacing.md};
+  border: 2px solid ${({ theme, $checked }) => $checked ? theme.colors.primary : theme.colors.border};
+  border-radius: ${({ theme }) => theme.radii.md};
+  background: ${({ theme, $checked }) => $checked ? `${theme.colors.primary}10` : 'transparent'};
+  cursor: pointer;
+  transition: all ${({ theme }) => theme.transitions.fast};
+
+  &:hover {
+    border-color: ${({ theme }) => theme.colors.primary};
+    background: ${({ theme }) => theme.colors.primary}10;
+  }
+
+  input {
+    cursor: pointer;
+  }
+`;
+
+const SeriesLabel = styled.span`
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  font-weight: ${({ theme }) => theme.fontWeights.medium};
+  color: ${({ theme }) => theme.colors.text};
+`;
+
 const eventLevels = [
   { value: 'L1', label: 'Licence 1 (L1)' },
   { value: 'L2', label: 'Licence 2 (L2)' },
@@ -339,13 +256,16 @@ const eventTypes = [
   { value: 'SELECTION', label: 'Sélection de dossier' }
 ];
 
-const EventCreate = () => {
+const EventEdit = () => {
+  const { id } = useParams();
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [decreeFile, setDecreeFile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
   const [subjects, setSubjects] = useState([{ name: '', coefficient: 1 }]);
   const [locations, setLocations] = useState(['']);
   const [eliminatorySubjects, setEliminatorySubjects] = useState([]);
+  const [decreeFile, setDecreeFile] = useState(null);
   const [selectedSeries, setSelectedSeries] = useState(new Set());
 
   const { 
@@ -353,6 +273,7 @@ const EventCreate = () => {
     handleSubmit, 
     control,
     watch,
+    setValue,
     formState: { errors } 
   } = useForm({
     defaultValues: {
@@ -365,12 +286,10 @@ const EventCreate = () => {
       examDate: '',
       examEndDate: '',
       deadline: '',
-      // Deliberation rules for CONTEST
       noteEliminatoire: 5,
       moyenneMinimum: 10,
       criteresSpecifiques: '',
       waitlistPercentage: 20,
-      // Selection criteria for SELECTION
       criteresTexte: '',
       minSelectionScore: 50
     }
@@ -378,24 +297,101 @@ const EventCreate = () => {
 
   const selectedEventType = watch('eventType');
 
-  // Toggle eliminatory subject
+useEffect(() => {
+  const fetchEvent = async () => {
+    try {
+      const res = await eventService.getById(id);
+      const event = res.data;
+      
+      console.log('Fetched event data:', event); // Debug log
+      console.log('Event type:', event.eventType);
+      console.log('criteresSpecifiques:', event.criteresSpecifiques);
+      console.log('matieresEliminatoires:', event.matieresEliminatoires);
+      
+      // Helper function to extract date from ISO string
+      const extractDate = (dateString) => {
+        if (!dateString) return '';
+        if (typeof dateString === 'string') {
+          return dateString.slice(0, 10);
+        }
+        return '';
+      };
+      
+      // Set form values
+      setValue('name', event.name || '');
+      setValue('description', event.description || '');
+      setValue('level', event.level || 'L1');
+      setValue('eventType', event.eventType || 'CONTEST');
+      setValue('maxRegistrations', event.maxRegistrations || 100);
+      setValue('registrationFee', event.registrationFee || 0);
+      setValue('examDate', extractDate(event.examDate));
+      setValue('examEndDate', extractDate(event.examEndDate));
+      setValue('deadline', extractDate(event.deadline));
+      setValue('noteEliminatoire', event.noteEliminatoire || 5);
+      setValue('moyenneMinimum', event.moyenneMinimum || 10);
+      setValue('waitlistPercentage', event.waitlistPercentage || 20);
+      setValue('minSelectionScore', event.minSelectionScore || 50);
+      
+      // Set eligible series
+      if (event.eligibleSeries && Array.isArray(event.eligibleSeries)) {
+        setSelectedSeries(new Set(event.eligibleSeries));
+      } else if (event.eligibleSeries && typeof event.eligibleSeries === 'object') {
+        setSelectedSeries(new Set(Object.values(event.eligibleSeries)));
+      }
+      
+      // Set deliberation rules based on event type
+      if (event.eventType === 'CONTEST') {
+        // Set criteresSpecifiques - THIS WAS THE BUG!
+        console.log('Setting criteresSpecifiques:', event.criteresSpecifiques);
+        setValue('criteresSpecifiques', event.criteresSpecifiques || '');
+        
+        // Set eliminatory subjects from backend response - THIS WAS ALSO THE BUG!
+        console.log('Setting matieresEliminatoires:', event.matieresEliminatoires);
+        if (Array.isArray(event.matieresEliminatoires) && event.matieresEliminatoires.length > 0) {
+          setEliminatorySubjects(event.matieresEliminatoires);
+        } else if (event.matieresEliminatoires) {
+          // Handle case where it might be a string or object
+          setEliminatorySubjects([]);
+        } else {
+          setEliminatorySubjects([]);
+        }
+      } else {
+        // Handle SELECTION events
+        setValue('criteresTexte', event.criteresTexte || '');
+      }
+      
+      // Set subjects - handle both array and object formats
+      if (event.subjects && Array.isArray(event.subjects)) {
+        const subjectArray = event.subjects.map(s => {
+          if (typeof s === 'object' && s.name) {
+            return { name: s.name, coefficient: s.coefficient || 1 };
+          }
+          return s;
+        });
+        setSubjects(subjectArray.length > 0 ? subjectArray : [{ name: '', coefficient: 1 }]);
+      }
+      
+      // Set locations - handle both array and string values
+      if (event.locations && Array.isArray(event.locations)) {
+        const locationArray = event.locations.filter(l => l && l.trim());
+        setLocations(locationArray.length > 0 ? locationArray : ['']);
+      }
+    } catch (err) {
+      console.error('Error fetching event:', err);
+      setError("Erreur lors du chargement du concours.");
+    } finally {
+      setLoading(false);
+    }
+  };
+  fetchEvent();
+}, [id, setValue]);
+
   const toggleEliminatorySubject = (subjectName) => {
     if (eliminatorySubjects.includes(subjectName)) {
       setEliminatorySubjects(eliminatorySubjects.filter(s => s !== subjectName));
     } else {
       setEliminatorySubjects([...eliminatorySubjects, subjectName]);
     }
-  };
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setDecreeFile(file);
-    }
-  };
-
-  const removeFile = () => {
-    setDecreeFile(null);
   };
 
   const addSubject = () => {
@@ -430,8 +426,20 @@ const EventCreate = () => {
     setLocations(updated);
   };
 
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setDecreeFile(file);
+    }
+  };
+
+  const removeFile = () => {
+    setDecreeFile(null);
+  };
+
   const onSubmit = async (data) => {
-    setLoading(true);
+    setSaving(true);
+    setError('');
     try {
       const formData = new FormData();
       formData.append('name', data.name);
@@ -443,7 +451,6 @@ const EventCreate = () => {
       formData.append('eventType', data.eventType);
       formData.append('eligibleSeries', JSON.stringify(Array.from(selectedSeries)));
       
-      // Deliberation rules
       const deliberationRules = {
         eventType: data.eventType,
         moyenneMinimum: data.moyenneMinimum,
@@ -451,19 +458,16 @@ const EventCreate = () => {
         waitlistPercentage: data.waitlistPercentage
       };
 
-      // Only add exam fields for CONTEST type
       if (data.eventType === 'CONTEST') {
         formData.append('examDate', data.examDate);
         formData.append('examEndDate', data.examEndDate);
         formData.append('locations', JSON.stringify(locations.filter(l => l.trim())));
         formData.append('subjects', JSON.stringify(subjects.filter(s => s.name)));
         
-        // Contest-specific deliberation rules
         deliberationRules.noteEliminatoire = data.noteEliminatoire;
         deliberationRules.criteresSpecifiques = data.criteresSpecifiques;
         deliberationRules.matieresEliminatoires = eliminatorySubjects;
       } else {
-        // Selection-specific criteria
         deliberationRules.criteresTexte = data.criteresTexte;
         deliberationRules.minSelectionScore = data.minSelectionScore;
       }
@@ -474,23 +478,44 @@ const EventCreate = () => {
         formData.append('decreeFile', decreeFile);
       }
 
-      await eventService.create(formData);
-      navigate('/university/events');
-    } catch (error) {
-      console.error('Error creating event:', error);
-      alert('Erreur lors de la création');
+      await eventService.update(id, formData);
+      navigate(`/university/events/${id}`);
+    } catch (err) {
+      console.error('Error updating event:', err);
+      setError("Erreur lors de la modification du concours.");
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
+  if (loading) {
+    return (
+      <UniversityLayout pageTitle="Modifier un concours">
+        <Loader text="Chargement du concours..." />
+      </UniversityLayout>
+    );
+  }
+
+  if (error && loading === false && error.includes('Erreur lors du chargement')) {
+    return (
+      <UniversityLayout pageTitle="Modifier un concours">
+        <Card>
+          <p style={{ color: '#ef4444' }}>{error}</p>
+          <Button variant="outline" onClick={() => navigate('/university/events')}>
+            Retour
+          </Button>
+        </Card>
+      </UniversityLayout>
+    );
+  }
+
   return (
-    <UniversityLayout pageTitle="Créer un événement">
+    <UniversityLayout pageTitle="Modifier un concours">
       <PageHeader>
         <BackButton onClick={() => navigate(-1)}>
           <ArrowLeft />
         </BackButton>
-        <PageTitle>Créer un nouvel événement</PageTitle>
+        <PageTitle>Modifier le concours</PageTitle>
       </PageHeader>
 
       <form onSubmit={handleSubmit(onSubmit)}>
@@ -736,7 +761,6 @@ const EventCreate = () => {
               </FormSection>
             )}
 
-            {/* Deliberation Rules Section */}
             <FormSection>
               <SectionTitle>
                 <Scale size={20} />
@@ -899,34 +923,56 @@ const EventCreate = () => {
                 Arrêté institutionnel
               </SectionTitle>
 
-              <FileUploadArea $hasFile={!!decreeFile}>
+              {!decreeFile && (
+                <p style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+                  Laissez vide si vous ne souhaitez pas modifier le fichier
+                </p>
+              )}
+
+              <div style={{
+                border: `2px dashed ${decreeFile ? '#10b981' : '#e5e7eb'}`,
+                borderRadius: '0.5rem',
+                padding: '1.5rem',
+                textAlign: 'center',
+                cursor: 'pointer',
+                background: decreeFile ? '#10b98115' : '#f9fafb',
+                transition: 'all 0.2s'
+              }}>
                 <input 
                   type="file" 
                   id="decreeFile"
                   accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp"
                   onChange={handleFileChange}
+                  style={{ display: 'none' }}
                 />
                 <label htmlFor="decreeFile" style={{ cursor: 'pointer', display: 'block' }}>
-                  <FileUploadIcon>
-                    <Upload size={24} />
-                  </FileUploadIcon>
-                  <FileUploadText>
-                    <h4>Importer l'arrêté</h4>
-                    <p>PDF, DOC, DOCX ou Image (JPG, PNG)</p>
-                  </FileUploadText>
+                  <Upload size={24} style={{ color: '#3b82f6', margin: '0 auto 0.5rem' }} />
+                  <h4 style={{ margin: 0, fontSize: '0.875rem', fontWeight: '500', color: '#1f2937' }}>Importer l'arrêté</h4>
+                  <p style={{ margin: '0.25rem 0 0', fontSize: '0.75rem', color: '#6b7280' }}>PDF, DOC, DOCX ou Image (JPG, PNG)</p>
                 </label>
-              </FileUploadArea>
+              </div>
 
               {decreeFile && (
-                <UploadedFile>
-                  <FileName>
-                    <FileText size={18} />
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '0.75rem',
+                  background: '#f3f4f6',
+                  borderRadius: '0.375rem',
+                  marginTop: '0.75rem'
+                }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', color: '#1f2937' }}>
+                    <FileText size={18} color="#3b82f6" />
                     {decreeFile.name}
-                  </FileName>
-                  <RemoveFileButton onClick={removeFile}>
+                  </span>
+                  <button 
+                    onClick={removeFile}
+                    style={{ padding: 0, background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}
+                  >
                     <X size={18} />
-                  </RemoveFileButton>
-                </UploadedFile>
+                  </button>
+                </div>
               )}
             </FormSection>
 
@@ -939,14 +985,14 @@ const EventCreate = () => {
                 <li>Remplissez tous les champs obligatoires (*)</li>
                 {selectedEventType === 'CONTEST' ? (
                   <>
-                    <li>Ajoutez toutes les matières du concours avec leurs coefficients</li>
-                    <li>Ajoutez tous les lieux d'examen disponibles</li>
+                    <li>Modifiez les matières du concours et leurs coefficients</li>
+                    <li>Modifiez tous les lieux d'examen disponibles</li>
                     <li>La date limite d'inscription doit être avant la date de l'examen</li>
                   </>
                 ) : (
-                  <li>Les candidats seront sélectionnés sur dossier</li>
+                  <li>Les critères de sélection s'appliqueront à l'évaluation des dossiers</li>
                 )}
-                <li>L'événement sera créé en mode "Brouillon" par défaut</li>
+                <li>Les modifications seront appliquées au concours</li>
               </InfoList>
             </InfoCard>
 
@@ -955,24 +1001,24 @@ const EventCreate = () => {
                 type="button"
                 variant="outline"
                 onClick={() => navigate(-1)}
-                disabled={loading}
+                disabled={saving}
               >
                 Annuler
               </Button>
               <Button
                 type="submit"
                 variant="primary"
-                disabled={loading}
+                disabled={saving}
               >
-                {loading ? (
+                {saving ? (
                   <>
-                    <Loader size="sm" />
-                    Création...
+                    <LoaderIcon size={18} />
+                    Enregistrement...
                   </>
                 ) : (
                   <>
                     <Save size={18} />
-                    Créer
+                    Enregistrer
                   </>
                 )}
               </Button>
@@ -984,4 +1030,4 @@ const EventCreate = () => {
   );
 };
 
-export default EventCreate;
+export default EventEdit;

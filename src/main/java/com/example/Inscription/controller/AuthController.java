@@ -130,6 +130,13 @@ public class AuthController {
                     bacEntries
             );
             
+            // Save transcript file if provided
+            if (transcript != null && !transcript.isEmpty()) {
+                newUser.setTranscriptFile(transcript.getBytes());
+                newUser.setTranscriptFilename(transcript.getOriginalFilename());
+                userRepository.save(newUser);
+            }
+            
             // Générer le token JWT
             String token = jwtTokenProvider.generateToken(newUser.getEmail(), newUser.getRole().toString());
             
@@ -212,6 +219,16 @@ public class AuthController {
                     phone,
                     website
             );
+            
+            // Save authorization document if provided
+            if (authorization != null && !authorization.isEmpty()) {
+                Institution institution = newUser.getInstitution();
+                institution.setAuthorizationFile(authorization.getBytes());
+                institution.setAuthorizationFilename(authorization.getOriginalFilename());
+                institution.setIsAuthorizationVerified(false);
+                // Save institution through user repository (cascade)
+                userRepository.save(newUser);
+            }
             
             // Generate JWT token
             String token = jwtTokenProvider.generateToken(newUser.getEmail(), newUser.getRole().toString());

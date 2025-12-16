@@ -1,5 +1,6 @@
 package com.example.Inscription.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -23,5 +24,6 @@ public class Subject {
     
     @ManyToOne(optional = false)
     @JoinColumn(name = "event_id")
+    @JsonBackReference("event-subjects")
     private Event event;
 }

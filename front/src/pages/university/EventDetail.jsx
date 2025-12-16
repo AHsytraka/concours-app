@@ -381,6 +381,7 @@ const EventDetail = () => {
   const [event, setEvent] = useState(null);
   const [registrations, setRegistrations] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [togglingRegistrations, setTogglingRegistrations] = useState(false);
 
   useEffect(() => {
     fetchEventData();
@@ -413,6 +414,19 @@ const EventDetail = () => {
     }
   };
 
+  const handleToggleRegistrations = async () => {
+    try {
+      setTogglingRegistrations(true);
+      const response = await eventService.toggleRegistrations(id);
+      setEvent({ ...event, registrationsOpen: response.data.registrationsOpen });
+    } catch (error) {
+      console.error('Error toggling registrations:', error);
+      alert(error.response?.data?.error || 'Erreur lors du changement d\'état des inscriptions');
+    } finally {
+      setTogglingRegistrations(false);
+    }
+  };
+
   const handleValidateRegistration = async (registrationId) => {
     setRegistrations(registrations.map(r => 
       r.id === registrationId ? { ...r, status: 'validated' } : r
@@ -434,6 +448,9 @@ const EventDetail = () => {
   const getInitials = (firstName, lastName) => {
     return `${firstName?.[0] || ''}${lastName?.[0] || ''}`.toUpperCase();
   };
+
+  // Check if deadline has passed
+  const isDeadlinePassed = event && event.registrationEnd && new Date(event.registrationEnd) < new Date();
 
   if (loading) {
     return (
@@ -491,10 +508,31 @@ const EventDetail = () => {
               Ouvrir les inscriptions
             </Button>
           )}
-          {event.status === 'open' && (
-            <Button variant="warning" onClick={() => handleStatusChange('closed')}>
-              <Pause size={16} />
-              Fermer les inscriptions
+          {event.status === 'open' && !isDeadlinePassed && (
+            <>
+              <Button 
+                variant={event.registrationsOpen ? "warning" : "success"}
+                onClick={handleToggleRegistrations}
+                disabled={togglingRegistrations}
+              >
+                {event.registrationsOpen ? (
+                  <>
+                    <Pause size={16} />
+                    Fermer les inscriptions
+                  </>
+                ) : (
+                  <>
+                    <Play size={16} />
+                    Ouvrir les inscriptions
+                  </>
+                )}
+              </Button>
+            </>
+          )}
+          {isDeadlinePassed && (
+            <Button variant="ghost" disabled title="Date limite dépassée">
+              <Clock size={16} />
+              Inscriptions fermées
             </Button>
           )}
           <Button as={Link} to={`/university/events/${id}/edit`} variant="outline">
@@ -626,7 +664,7 @@ const EventDetail = () => {
                   <InfoContent>
                     <InfoLabel>Date limite d'inscription</InfoLabel>
                     <InfoValue>
-                      {event.deadline && format(new Date(event.deadline), 'dd MMMM yyyy', { locale: fr })}
+                      {event.registrationEnd && format(new Date(event.registrationEnd), 'dd MMMM yyyy', { locale: fr })}
                     </InfoValue>
                   </InfoContent>
                 </InfoItem>
@@ -635,7 +673,8 @@ const EventDetail = () => {
                   <InfoContent>
                     <InfoLabel>Date de l'examen</InfoLabel>
                     <InfoValue>
-                      {event.examDate && format(new Date(event.examDate), 'dd MMMM yyyy', { locale: fr })}
+                      {event.contestDate && format(new Date(event.contestDate), 'dd MMMM yyyy', { locale: fr })}
+                      {event.contestEndDate && ` - ${format(new Date(event.contestEndDate), 'dd MMMM yyyy', { locale: fr })}`}
                     </InfoValue>
                   </InfoContent>
                 </InfoItem>
@@ -643,21 +682,21 @@ const EventDetail = () => {
                   <MapPin />
                   <InfoContent>
                     <InfoLabel>Lieu</InfoLabel>
-                    <InfoValue>{event.location}</InfoValue>
+                    <InfoValue>{event.locations?.join(', ') || 'Non défini'}</InfoValue>
                   </InfoContent>
                 </InfoItem>
                 <InfoItem>
                   <Users />
                   <InfoContent>
                     <InfoLabel>Places disponibles</InfoLabel>
-                    <InfoValue>{event.registrations || 0} / {event.maxRegistrations}</InfoValue>
+                    <InfoValue>{event.registrationCount || 0} inscrits / {event.maxAdmissions || '∞'} places</InfoValue>
                   </InfoContent>
                 </InfoItem>
                 <InfoItem>
                   <FileText />
                   <InfoContent>
                     <InfoLabel>Frais d'inscription</InfoLabel>
-                    <InfoValue>{event.registrationFee?.toLocaleString()} Ar</InfoValue>
+                    <InfoValue>{event.registrationFee?.toLocaleString() || 0} Ar</InfoValue>
                   </InfoContent>
                 </InfoItem>
               </InfoList>

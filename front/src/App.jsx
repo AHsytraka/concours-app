@@ -16,12 +16,15 @@ import UniversityRegister from './pages/auth/UniversityRegister';
 // Student Pages
 import StudentDashboard from './pages/student/Dashboard';
 import StudentProfile from './pages/student/Profile';
+import StudentCourseRegistrations from './pages/student/CourseRegistrations';
+import StudentEventRegister from './pages/student/StudentEventRegister';
 
 // University Pages
 import UniversityDashboard from './pages/university/Dashboard';
 import UniversityEvents from './pages/university/Events';
 import UniversityEventCreate from './pages/university/EventCreate';
 import UniversityEventDetail from './pages/university/EventDetail';
+import UniversityEventEdit from './pages/university/EventEdit';
 import UniversityRegistrations from './pages/university/Registrations';
 import UniversityDossiers from './pages/university/Dossiers';
 import UniversityGrades from './pages/university/Grades';
@@ -131,7 +134,15 @@ const AppRoutes = () => {
         path="/student/registrations" 
         element={
           <ProtectedRoute allowedRoles={['STUDENT']}>
-            <StudentDashboard />
+            <StudentCourseRegistrations />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/student/register-event/:eventId" 
+        element={
+          <ProtectedRoute allowedRoles={['STUDENT']}>
+            <StudentEventRegister />
           </ProtectedRoute>
         } 
       />
@@ -174,6 +185,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={['UNIVERSITY_ADMIN', 'INSTITUTION_ADMIN']} pageName="Détail du concours">
             <UniversityEventDetail />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/university/events/:id/edit" 
+        element={
+          <ProtectedRoute allowedRoles={['UNIVERSITY_ADMIN', 'INSTITUTION_ADMIN']} pageName="Modifier le concours">
+            <UniversityEventEdit />
           </ProtectedRoute>
         } 
       />

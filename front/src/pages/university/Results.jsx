@@ -440,7 +440,19 @@ const Results = () => {
         </HeaderActions>
       </PageHeader>
 
-
+      <EventSelector>
+        <span>Sélectionner un concours :</span>
+        <EventSelect
+          value={selectedEventId}
+          onChange={(e) => setSelectedEventId(e.target.value)}
+          options={[
+            { value: '', label: '-- Choisir un concours --' },
+            ...events
+              .filter(e => e.eventType === 'CONTEST')
+              .map(e => ({ value: e.id, label: e.title }))
+          ]}
+        />
+      </EventSelector>
 
       {selectedEvent ? (
         <>

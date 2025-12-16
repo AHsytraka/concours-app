@@ -74,6 +74,26 @@ public class EventService {
     }
     
     /**
+     * Toggle registrations pause/resume - can only be done before the deadline
+     */
+    public void toggleRegistrations(Long eventId) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new IllegalArgumentException("Event not found"));
+        
+        LocalDateTime now = LocalDateTime.now();
+        
+        // After deadline, cannot toggle - registrations must remain closed
+        if (now.isAfter(event.getRegistrationEnd())) {
+            throw new IllegalStateException("Cannot toggle registrations after the deadline has passed");
+        }
+        
+        // Toggle the registration status
+        event.setRegistrationsOpen(!event.getRegistrationsOpen());
+        event.setUpdatedAt(now);
+        eventRepository.save(event);
+    }
+    
+    /**
      * Process results for contest (deliberation)
      */
     public void processContestResults(Long eventId) throws Exception {

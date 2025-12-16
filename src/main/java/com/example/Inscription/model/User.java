@@ -7,11 +7,11 @@ import java.util.*;
 
 @Entity
 @Table(name = "users")
-@Data
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@EqualsAndHashCode(exclude = {"eventRegistrations", "examResults", "institution"})
 public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -63,6 +63,12 @@ public class User {
     
     @Column(name = "average_grade")
     private Double averageGrade;
+    
+    @Column(name = "transcript_file")
+    private byte[] transcriptFile;
+    
+    @Column(name = "transcript_filename")
+    private String transcriptFilename;
     
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;

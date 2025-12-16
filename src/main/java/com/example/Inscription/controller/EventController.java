@@ -27,24 +27,86 @@ public class EventController {
     
     @GetMapping("/active")
     @Operation(summary = "Get active events", description = "Get list of events currently open for registration")
-    public ResponseEntity<List<Event>> getActiveEvents() {
+    public ResponseEntity<List<Map<String, Object>>> getActiveEvents() {
         List<Event> events = eventRepository.findByIsActiveTrue();
-        return ResponseEntity.ok(events);
+        List<Map<String, Object>> dtos = events.stream()
+                .map(this::mapEventToDto)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(dtos);
     }
     
     @GetMapping("/by-institution/{institutionId}")
     @Operation(summary = "Get events by institution", description = "Get all events for a specific institution")
-    public ResponseEntity<List<Event>> getEventsByInstitution(@PathVariable Long institutionId) {
+    public ResponseEntity<List<Map<String, Object>>> getEventsByInstitution(@PathVariable Long institutionId) {
         List<Event> events = eventRepository.findByInstitutionId(institutionId);
-        return ResponseEntity.ok(events);
+        List<Map<String, Object>> dtos = events.stream()
+                .map(this::mapEventToDto)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(dtos);
     }
     
     @GetMapping("/{eventId}")
     @Operation(summary = "Get event details", description = "Get detailed information about an event")
     public ResponseEntity<?> getEventDetails(@PathVariable Long eventId) {
         return eventRepository.findById(eventId)
-                .map(ResponseEntity::ok)
+                .map(event -> ResponseEntity.ok(mapEventToDto(event)))
                 .orElse(ResponseEntity.notFound().build());
+    }
+    
+    /**
+     * Map Event entity to DTO to avoid ConcurrentModificationException
+     */
+    private Map<String, Object> mapEventToDto(Event event) {
+        Map<String, Object> dto = new HashMap<>();
+        dto.put("id", event.getId());
+        dto.put("title", event.getTitle());
+        dto.put("description", event.getDescription());
+        dto.put("eventType", event.getEventType());
+        dto.put("registrationStart", event.getRegistrationStart());
+        dto.put("registrationEnd", event.getRegistrationEnd());
+        dto.put("contestDate", event.getContestDate());
+        dto.put("contestEndDate", event.getContestEndDate());
+        dto.put("resultsDate", event.getResultsDate());
+        dto.put("decreeFilename", event.getDecreeFilename());
+        dto.put("isDecreeVerified", event.getIsDecreeVerified());
+        dto.put("isActive", event.getIsActive());
+        dto.put("createdAt", event.getCreatedAt());
+        dto.put("updatedAt", event.getUpdatedAt());
+        dto.put("maxAdmissions", event.getMaxAdmissions());
+        dto.put("registrationFee", event.getRegistrationFee());
+        dto.put("level", event.getLevel());
+        
+        // Copy locations to avoid ConcurrentModificationException
+        dto.put("locations", new ArrayList<>(event.getLocations()));
+        
+        // Copy eligible series
+        dto.put("eligibleSeries", new ArrayList<>(event.getEligibleSeries()));
+        
+        // Map subjects
+        List<Map<String, Object>> subjectDtos = new ArrayList<>();
+        for (Subject subject : event.getSubjects()) {
+            Map<String, Object> subjectDto = new HashMap<>();
+            subjectDto.put("id", subject.getId());
+            subjectDto.put("name", subject.getName());
+            subjectDto.put("coefficient", subject.getCoefficient());
+            subjectDtos.add(subjectDto);
+        }
+        dto.put("subjects", subjectDtos);
+        
+        // Map institution (minimal info)
+        if (event.getInstitution() != null) {
+            Map<String, Object> instDto = new HashMap<>();
+            instDto.put("id", event.getInstitution().getId());
+            instDto.put("name", event.getInstitution().getName());
+            instDto.put("shortName", event.getInstitution().getAcronym());
+            instDto.put("logo", event.getInstitution().getLogo());
+            dto.put("institution", instDto);
+        }
+        
+        // Registration count
+        dto.put("registrationCount", event.getRegistrations() != null ? event.getRegistrations().size() : 0);
+        
+        return dto;
     }
     
     @GetMapping("/{eventId}/registration-count")

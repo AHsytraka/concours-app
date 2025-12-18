@@ -21,6 +21,7 @@ public class StudentEventRegistrationService {
     private final StudentEventRegistrationRepository registrationRepository;
     private final EventRepository eventRepository;
     private final UserRepository userRepository;
+    private final StudentReleveDeNotesRepository releveDeNotesRepository;
     
     /**
      * Register a student for an event
@@ -210,5 +211,74 @@ public class StudentEventRegistrationService {
      */
     public long countEligibleRegistrations(Long eventId) {
         return registrationRepository.countByEventIdAndIsEligibleTrue(eventId);
+    }
+    
+    /**
+     * Register with validated releve de notes for specific series
+     */
+    public StudentEventRegistration registerForEventWithReleve(Long userId, Long eventId, BacSeries bacSeries,
+            byte[] bordereauFile, String bordereauFilename, String numeroBordereau) throws Exception {
+        
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new IllegalArgumentException("Event not found"));
+        
+        // Check if registration period is open
+        if (!event.getRegistrationsOpen()) {
+            throw new IllegalStateException("Registrations are temporarily paused for this event");
+        }
+        
+        // Check if registration deadline has passed
+        LocalDateTime now = LocalDateTime.now();
+        if (now.isAfter(event.getRegistrationEnd())) {
+            throw new IllegalStateException("Registration deadline has passed for this event");
+        }
+        
+        // Check if student already registered
+        Optional<StudentEventRegistration> existing = registrationRepository.findByUserIdAndEventId(userId, eventId);
+        if (existing.isPresent()) {
+            throw new IllegalArgumentException("Student is already registered for this event");
+        }
+        
+        // Check if event has series restrictions
+        if (event.getEligibleSeries() != null && !event.getEligibleSeries().isEmpty()) {
+            if (!event.getEligibleSeries().contains(bacSeries)) {
+                throw new IllegalArgumentException("Series " + bacSeries + " is not eligible for this event");
+            }
+        }
+        
+        // Get verified releve de notes for the series
+        Optional<StudentReleveDeNotes> releveOptional = releveDeNotesRepository
+                .findByStudentIdAndBacSeriesAndVerifiedTrue(userId, bacSeries);
+        
+        if (releveOptional.isEmpty()) {
+            throw new IllegalArgumentException("No verified releve de notes found for series " + bacSeries);
+        }
+        
+        StudentReleveDeNotes releve = releveOptional.get();
+        
+        // Create registration
+        StudentEventRegistration registration = new StudentEventRegistration();
+        registration.setUser(user);
+        registration.setEvent(event);
+        registration.setStatus(RegistrationStatus.PENDING);
+        registration.setReleveDeNotesRecord(releve);
+        registration.setBacSeriesUsed(bacSeries);
+        registration.setReleveDeNoteFile(releve.getFileContent());
+        registration.setReleveDeNoteFilename(releve.getFilename());
+        registration.setIsReleveVerified(true); // Already verified
+        registration.setBordereauFile(bordereauFile);
+        registration.setBordereauFilename(bordereauFilename);
+        registration.setNumeroBordereau(numeroBordereau);
+        registration.setIsBordereauVerified(false);
+        registration.setIsEligible(true);
+        registration.setIsConvocationSent(false);
+        
+        log.info("Registered student {} for event {} with series {} and releve de notes {}", 
+                userId, eventId, bacSeries, releve.getId());
+        
+        return registrationRepository.save(registration);
     }
 }

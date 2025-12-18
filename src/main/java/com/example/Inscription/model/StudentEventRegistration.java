@@ -27,6 +27,15 @@ public class StudentEventRegistration {
     @JsonIgnoreProperties({"registrations", "registrationNumbers"})
     private Event event;
     
+    @ManyToOne
+    @JoinColumn(name = "releve_de_notes_id")
+    @JsonIgnoreProperties({"student", "fileContent"})
+    private StudentReleveDeNotes releveDeNotesRecord;
+    
+    @Enumerated(EnumType.STRING)
+    @Column(name = "bac_series_used")
+    private BacSeries bacSeriesUsed; // Which Bac series was used for this registration
+    
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private RegistrationStatus status = RegistrationStatus.PENDING;

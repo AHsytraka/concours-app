@@ -1869,77 +1869,17 @@ private Map<String, Object> mapEventToDto(Event event) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }
+
     
-    // ==================== DELIBERATION & RESULTS ====================
+
     
-    @PostMapping("/events/{eventId}/deliberate")
-    @Operation(summary = "Trigger deliberation", description = "Start deliberation process for event using AI service")
-    public ResponseEntity<?> triggerDeliberation(
-            Authentication authentication,
-            @PathVariable Long eventId) {
-        try {
-            String email = (String) authentication.getPrincipal();
-            User institution = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new IllegalArgumentException("User not found"));
-            
-            Event event = eventRepository.findById(eventId)
-                    .orElseThrow(() -> new IllegalArgumentException("Event not found"));
-            
-            // Verify event belongs to institution
-            if (!event.getInstitution().getId().equals(institution.getId())) {
-                return ResponseEntity.status(403).body(Map.of("message", "Unauthorized"));
-            }
-            
-            Map<String, Object> result = deliberationService.triggerDeliberation(eventId);
-            return ResponseEntity.ok(result);
-            
-        } catch (IllegalStateException e) {
-            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
-        } catch (Exception e) {
-            log.error("Error during deliberation for event {}: {}", eventId, e.getMessage(), e);
-            return ResponseEntity.status(500).body(Map.of("message", "Deliberation error: " + e.getMessage()));
-        }
-    }
-    
-    @GetMapping("/events/{eventId}/results")
-    @Operation(summary = "Get event results", description = "Get all results for an event")
-    public ResponseEntity<?> getEventResults(
-            Authentication authentication,
-            @PathVariable Long eventId) {
-        try {
-            String email = (String) authentication.getPrincipal();
-            User institution = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new IllegalArgumentException("User not found"));
-            
-            Event event = eventRepository.findById(eventId)
-                    .orElseThrow(() -> new IllegalArgumentException("Event not found"));
-            
-            // Verify event belongs to institution
-            if (!event.getInstitution().getId().equals(institution.getId())) {
-                return ResponseEntity.status(403).body(Map.of("message", "Unauthorized"));
-            }
-            
-            List<Map<String, Object>> results = deliberationService.getEventResults(eventId);
-            return ResponseEntity.ok(Map.of(
-                "eventId", eventId,
-                "eventTitle", event.getTitle(),
-                "totalResults", results.size(),
-                "maxAdmissions", event.getMaxAdmissions(),
-                "results", results
-            ));
-            
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
-        }
-    }
-    
-    @PostMapping("/events/{eventId}/grades")
-    @Operation(summary = "Submit grade entry", description = "Submit or update grade for a student")
+    @PostMapping("/events/{eventId}/grades/{studentId}")
+    @Operation(summary = "Submit single grade entry", description = "Submit or update grade for a single student")
     public ResponseEntity<?> submitGradeEntry(
             Authentication authentication,
             @PathVariable Long eventId,
+            @PathVariable Long studentId,
             @RequestParam Long subjectId,
-            @RequestParam Long studentId,
             @RequestParam Double score) {
         try {
             String email = (String) authentication.getPrincipal();

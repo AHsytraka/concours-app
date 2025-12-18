@@ -513,8 +513,8 @@ const StudentRegister = () => {
     { id: 1, type: '', series: '', year: '', number: '' }
   ]);
   
-  // État pour le fichier relevé de notes
-  const [releveFile, setReleveFile] = useState(null);
+  // État pour les fichiers relevé de notes (par série)
+  const [releveFiles, setReleveFiles] = useState({});
 
   const {
     register,
@@ -559,26 +559,36 @@ const StudentRegister = () => {
     return BAC_SERIES[type] || [];
   };
 
-  // Gestion de l'upload du relevé (simple, sans IA)
-  const handleFileSelect = (e) => {
+  // Gestion de l'upload du relevé par série
+  const handleFileSelect = (series, e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     // Vérifier le type de fichier
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
     if (!allowedTypes.includes(file.type)) {
-      setError('Type de fichier non supporté. Utilisez JPG, PNG, GIF ou PDF.');
+      setError(`Type de fichier non supporté pour ${series}. Utilisez JPG, PNG, GIF ou PDF.`);
       return;
     }
 
-    // Vérifier la taille (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      setError('Le fichier est trop volumineux (max 10MB).');
+    // Vérifier la taille (max 5MB pour chaque releve)
+    if (file.size > 5 * 1024 * 1024) {
+      setError(`Le fichier pour ${series} est trop volumineux (max 5MB).`);
       return;
     }
 
-    setReleveFile(file);
+    setReleveFiles({
+      ...releveFiles,
+      [series]: file
+    });
     setError(null);
+  };
+
+  // Supprimer un fichier releve
+  const removeReleveFile = (series) => {
+    const updated = { ...releveFiles };
+    delete updated[series];
+    setReleveFiles(updated);
   };
 
   // Validation avant de passer à l'étape suivante
@@ -616,10 +626,11 @@ const StudentRegister = () => {
         return false;
       }
       
-      // Le relevé est optionnel mais recommandé
-      if (!releveFile) {
+      // Les relevés de notes sont fortement recommandés (un par série de bac)
+      // Vérifier que l'étudiant a uploadé au moins un releve
+      if (Object.keys(releveFiles).length === 0) {
         // On peut quand même continuer, juste avertir
-        console.warn('Pas de relevé uploadé');
+        console.warn('Aucun relevé uploadé - l\'étudiant devra le faire après inscription');
       }
       
       return true;
@@ -664,7 +675,34 @@ const StudentRegister = () => {
       };
 
       // 1. Créer le compte utilisateur
-      const authResponse = await registerStudent(registrationData, releveFile);
+      const authResponse = await registerStudent(registrationData);
+      
+      // 2. Upload les relevés de notes par série (après inscription)
+      if (Object.keys(releveFiles).length > 0) {
+        try {
+          for (const [series, file] of Object.entries(releveFiles)) {
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            // Appel API pour uploader le releve pour cette série
+            const response = await fetch(`/api/students/releve-de-notes/${series}/upload`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+              },
+              body: formData
+            });
+
+            if (!response.ok) {
+              console.error(`Erreur upload releve ${series}:`, response.statusText);
+              // Continuer avec les autres uploads même si l'un échoue
+            }
+          }
+        } catch (uploadErr) {
+          console.error('Erreur lors de l\'upload des relevés:', uploadErr);
+          // L'utilisateur peut uploader les relevés plus tard depuis son profil
+        }
+      }
       
       setIsSuccess(true);
     } catch (err) {
@@ -982,40 +1020,70 @@ const StudentRegister = () => {
                     </AddBacButton>
                   </BacSeriesContainer>
 
-                  {/* Upload du relevé de notes */}
+                  {/* Upload des relevés de notes par série */}
                   <div style={{ marginTop: '32px' }}>
-                    <SectionTitle>Relevé de notes</SectionTitle>
+                    <SectionTitle>Relevés de notes</SectionTitle>
                     <SectionDescription>
-                      Uploadez une copie de votre relevé de notes du baccalauréat. 
-                      Ce document sera vérifié par l'administration.
+                      Uploadez un relevé de notes pour chaque série de baccalauréat. 
+                      Vous pouvez le faire maintenant ou plus tard depuis votre profil. 
+                      Ces documents seront vérifiés par l'administration.
                     </SectionDescription>
                     
-                    <FileUploadArea 
-                      $hasFile={!!releveFile}
-                      onClick={() => document.getElementById('releveInput').click()}
-                    >
-                      <FileUploadInput
-                        id="releveInput"
-                        type="file"
-                        accept="image/*,.pdf"
-                        onChange={handleFileSelect}
-                      />
-                      <FileUploadIcon $hasFile={!!releveFile}>
-                        {releveFile ? <CheckCircle size={28} /> : <Upload size={28} />}
-                      </FileUploadIcon>
-                      {releveFile ? (
-                        <>
-                          <FileUploadText>Fichier sélectionné</FileUploadText>
-                          <FileName>{releveFile.name}</FileName>
-                          <FileUploadHint>Cliquez pour changer le fichier</FileUploadHint>
-                        </>
-                      ) : (
-                        <>
-                          <FileUploadText>Cliquez pour uploader votre relevé</FileUploadText>
-                          <FileUploadHint>JPG, PNG, GIF ou PDF (max 10MB)</FileUploadHint>
-                        </>
-                      )}
-                    </FileUploadArea>
+                    {bacEntries.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
+                        {bacEntries.map((entry) => (
+                          <div key={entry.id}>
+                            <SectionDescription style={{ margin: '0 0 12px 0', fontSize: '13px' }}>
+                              Série <strong>{entry.series}</strong> (année {entry.year})
+                            </SectionDescription>
+                            <FileUploadArea 
+                              $hasFile={!!releveFiles[entry.series]}
+                              onClick={() => document.getElementById(`releveInput-${entry.series}`).click()}
+                            >
+                              <FileUploadInput
+                                id={`releveInput-${entry.series}`}
+                                type="file"
+                                accept="image/*,.pdf"
+                                onChange={(e) => handleFileSelect(entry.series, e)}
+                              />
+                              <FileUploadIcon $hasFile={!!releveFiles[entry.series]}>
+                                {releveFiles[entry.series] ? <CheckCircle size={24} /> : <Upload size={24} />}
+                              </FileUploadIcon>
+                              {releveFiles[entry.series] ? (
+                                <>
+                                  <FileUploadText>Fichier sélectionné</FileUploadText>
+                                  <FileName>{releveFiles[entry.series].name}</FileName>
+                                  <FileUploadHint style={{ marginTop: '8px' }}>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        removeReleveFile(entry.series);
+                                      }}
+                                      style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        color: '#ef4444',
+                                        cursor: 'pointer',
+                                        fontSize: '12px',
+                                        textDecoration: 'underline'
+                                      }}
+                                    >
+                                      Supprimer
+                                    </button>
+                                  </FileUploadHint>
+                                </>
+                              ) : (
+                                <>
+                                  <FileUploadText>Cliquez pour uploader</FileUploadText>
+                                  <FileUploadHint>JPG, PNG, GIF ou PDF (max 5MB)</FileUploadHint>
+                                </>
+                              )}
+                            </FileUploadArea>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </FormSection>
               )}

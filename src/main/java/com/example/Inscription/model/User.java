@@ -88,4 +88,7 @@ public class User {
     
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     private Set<ExamResult> examResults = new HashSet<>();
+    
+    @OneToMany(mappedBy = "student", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<StudentReleveDeNotes> releveDeNotes = new HashSet<>();
 }

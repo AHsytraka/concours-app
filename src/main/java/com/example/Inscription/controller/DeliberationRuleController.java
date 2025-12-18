@@ -2,6 +2,7 @@ package com.example.Inscription.controller;
 
 import com.example.Inscription.model.*;
 import com.example.Inscription.repository.*;
+import com.example.Inscription.service.*;
 import com.example.Inscription.service.ai.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -28,7 +29,7 @@ public class DeliberationRuleController {
     
     private final DeliberationRuleRepository ruleRepository;
     private final DeliberationRuleService ruleService;
-    private final DeliberationService deliberationService;
+    private final AiDeliberationService aiDeliberationService;
     private final ClassificationService classificationService;
     private final UserRepository userRepository;
     private final InstitutionRepository institutionRepository;
@@ -147,10 +148,11 @@ public class DeliberationRuleController {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Not associated with an institution");
             }
             
-            DeliberationRule newRule = deliberationService.duplicatePreviousRule(
-                    user.getInstitution().getId(), previousRuleId, newRuleName);
-            
-            return ResponseEntity.status(HttpStatus.CREATED).body(newRule);
+            // TODO: Implement duplicate rule logic or use new deliberation service
+            // DeliberationRule newRule = deliberationService.duplicatePreviousRule(
+            //        user.getInstitution().getId(), previousRuleId, newRuleName);
+            // return ResponseEntity.status(HttpStatus.CREATED).body(newRule);
+            throw new UnsupportedOperationException("Method not yet implemented with new service");
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
@@ -178,8 +180,9 @@ public class DeliberationRuleController {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Unauthorized");
             }
             
-            DeliberationResult result = deliberationService.deliberateContest(eventId, examScores);
-            return ResponseEntity.ok(result);
+            // TODO: Use new deliberation service to process event
+            // DeliberationResult result = deliberationService.deliberateContest(eventId, examScores);
+            throw new UnsupportedOperationException("Use POST /api/institution/events/{eventId}/deliberate instead");
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }

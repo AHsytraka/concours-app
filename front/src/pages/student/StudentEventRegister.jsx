@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
-import { ArrowLeft, FileText, Upload, AlertCircle, CheckCircle } from 'lucide-react';
+import { ArrowLeft, FileText, Upload, AlertCircle, CheckCircle, Info, Clock, X } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import fr from 'date-fns/locale/fr';
 import StudentLayout from '../../components/layout/StudentLayout';
@@ -178,6 +178,106 @@ const EventTitle = styled.h3`
   margin: 0 0 ${({ theme }) => theme.spacing.md};
 `;
 
+const ReleveSelectionCard = styled(Card)`
+  padding: ${({ theme }) => theme.spacing.lg};
+  background: #f0fdf4;
+  border-color: #22c55e;
+  border: 1px solid #22c55e;
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+`;
+
+const ReleveSelectionTitle = styled.h3`
+  font-size: ${({ theme }) => theme.fontSizes.md};
+  font-weight: ${({ theme }) => theme.fontWeights.semibold};
+  color: ${({ theme }) => theme.colors.text};
+  margin: 0 0 ${({ theme }) => theme.spacing.md};
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.sm};
+`;
+
+const ReleveSelectionGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: ${({ theme }) => theme.spacing.md};
+`;
+
+const ReleveOption = styled.label`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.spacing.sm};
+  padding: ${({ theme }) => theme.spacing.md};
+  border: 2px solid #e5e7eb;
+  border-radius: ${({ theme }) => theme.radii.md};
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: white;
+
+  input[type="radio"] {
+    cursor: pointer;
+  }
+
+  &:has(input:checked) {
+    background: #f0fdf4;
+    border-color: #22c55e;
+  }
+
+  &:hover {
+    border-color: #22c55e;
+  }
+`;
+
+const ReleveOptionLabel = styled.span`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.spacing.xs};
+`;
+
+const ReleveSeriesLabel = styled.strong`
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  color: ${({ theme }) => theme.colors.text};
+`;
+
+const ReleveStatusBadge = styled.span`
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: ${({ $verified }) => $verified ? '#22c55e' : '#fbbf24'};
+  color: white;
+  font-weight: 500;
+`;
+
+const WarningAlert = styled(Alert)`
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+`;
+
+const ReleveRequirement = styled.div`
+  padding: ${({ theme }) => theme.spacing.md};
+  background: #fef3c7;
+  border-left: 4px solid #f59e0b;
+  border-radius: ${({ theme }) => theme.radii.sm};
+  margin-bottom: ${({ theme }) => theme.spacing.lg};
+  display: flex;
+  gap: ${({ theme }) => theme.spacing.md};
+
+  svg {
+    color: #f59e0b;
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+  }
+`;
+
+const ReleveRequirementText = styled.div`
+  font-size: ${({ theme }) => theme.fontSizes.sm};
+  color: #854d0e;
+
+  strong {
+    display: block;
+    margin-bottom: 4px;
+  }
+`;
+
 const StudentEventRegister = () => {
   const { eventId } = useParams();
   const navigate = useNavigate();
@@ -189,6 +289,11 @@ const StudentEventRegister = () => {
   
   const [releveFile, setReleveFile] = useState(null);
   const [bordereauFile, setBordereauFile] = useState(null);
+  
+  // Releve de notes state
+  const [studentReleves, setStudentReleves] = useState([]);
+  const [selectedReleve, setSelectedReleve] = useState(null);
+  const [releveWarning, setReleveWarning] = useState('');
 
   const {
     register,
@@ -205,19 +310,53 @@ const StudentEventRegister = () => {
   const numeroBordereau = watch('numeroBordereau');
 
   useEffect(() => {
-    const fetchEvent = async () => {
+    const fetchData = async () => {
       try {
-        const res = await eventService.getById(eventId);
-        setEvent(res.data);
+        // Fetch event details
+        const eventRes = await eventService.getById(eventId);
+        setEvent(eventRes.data);
+        
+        // Fetch student's relever de notes
+        const relevesRes = await fetch('/api/students/releve-de-notes', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+        
+        if (relevesRes.ok) {
+          const releves = await relevesRes.json();
+          setStudentReleves(Array.isArray(releves) ? releves : releves.data || []);
+          
+          // Auto-select first verified releve if event has series restrictions
+          if (eventRes.data.eligibleSeries && eventRes.data.eligibleSeries.length > 0) {
+            const verifiedReleves = releves.filter(r => r.verified && eventRes.data.eligibleSeries.includes(r.series));
+            if (verifiedReleves.length > 0) {
+              setSelectedReleve(verifiedReleves[0].id);
+            } else {
+              const availableReleves = releves.filter(r => eventRes.data.eligibleSeries.includes(r.series));
+              if (availableReleves.length > 0) {
+                setReleveWarning(`Vous avez uploadé un relevé pour la série ${availableReleves[0].series}, mais il n'a pas encore été vérifié par l'administration.`);
+              } else {
+                setReleveWarning(`Ce concours requiert une série spécifique (${eventRes.data.eligibleSeries.join(', ')}), mais vous n'avez pas uploadé de relevé pour cette série.`);
+              }
+            }
+          } else if (releves.length > 0) {
+            // No series restriction - just select first verified
+            const verified = releves.find(r => r.verified);
+            if (verified) {
+              setSelectedReleve(verified.id);
+            }
+          }
+        }
       } catch (err) {
-        console.error('Error fetching event:', err);
-        setError('Erreur lors du chargement du concours');
+        console.error('Error fetching data:', err);
+        setError('Erreur lors du chargement des données');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchEvent();
+    fetchData();
   }, [eventId]);
 
   const handleReleveUpload = (e) => {
@@ -247,11 +386,24 @@ const StudentEventRegister = () => {
   };
 
   const onSubmit = async (data) => {
-    // Validate required files
-    if (!releveFile) {
-      setError('Le relevé de note est requis');
+    // Validate selected releve de notes
+    if (!selectedReleve) {
+      setError('Vous devez sélectionner un relevé de notes uploadé');
       return;
     }
+
+    // Verify selected releve exists and is verified
+    const releve = studentReleves.find(r => r.id === selectedReleve);
+    if (!releve) {
+      setError('Le relevé de notes sélectionné n\'existe pas');
+      return;
+    }
+    if (!releve.verified) {
+      setError('Le relevé de notes sélectionné n\'a pas encore été vérifié par l\'administration');
+      return;
+    }
+
+    // Validate bordereau file
     if (!bordereauFile) {
       setError('Le bordereau de versement est requis');
       return;
@@ -264,7 +416,8 @@ const StudentEventRegister = () => {
     setSubmitting(true);
     try {
       const formData = new FormData();
-      formData.append('releveFile', releveFile);
+      formData.append('releveDeNotesId', selectedReleve);
+      formData.append('bacSeries', releve.series);
       formData.append('bordereauFile', bordereauFile);
       formData.append('numeroBordereau', numeroBordereau);
 
@@ -273,7 +426,7 @@ const StudentEventRegister = () => {
         method: 'POST',
         body: formData,
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
 
@@ -331,6 +484,11 @@ const StudentEventRegister = () => {
           <p style={{ margin: '0.5rem 0', fontSize: '0.875rem', color: '#666' }}>
             Limite d'inscription: {format(parseISO(event.registrationEnd), 'dd MMMM yyyy à HH:mm', { locale: fr })}
           </p>
+          {event.eligibleSeries && event.eligibleSeries.length > 0 && (
+            <p style={{ margin: '0.5rem 0', fontSize: '0.875rem', color: '#dc2626' }}>
+              <strong>Séries requises:</strong> {event.eligibleSeries.join(', ')}
+            </p>
+          )}
         </EventInfo>
 
         {error && (
@@ -339,45 +497,73 @@ const StudentEventRegister = () => {
           </Alert>
         )}
 
+        {releveWarning && (
+          <ReleveRequirement>
+            <AlertCircle />
+            <ReleveRequirementText>
+              <strong>Attention - Relevé de notes</strong>
+              {releveWarning}
+            </ReleveRequirementText>
+          </ReleveRequirement>
+        )}
+
         <form onSubmit={handleSubmit(onSubmit)}>
+          {/* Releve de notes selection */}
+          {studentReleves.length > 0 && (
+            <ReleveSelectionCard>
+              <ReleveSelectionTitle>
+                <CheckCircle size={20} style={{ color: '#22c55e' }} />
+                Sélectionnez votre relevé de notes
+              </ReleveSelectionTitle>
+              <ReleveSelectionGrid>
+                {studentReleves.map((releve) => (
+                  <ReleveOption key={releve.id}>
+                    <input
+                      type="radio"
+                      name="selectedReleve"
+                      value={releve.id}
+                      checked={selectedReleve === releve.id}
+                      onChange={(e) => {
+                        setSelectedReleve(parseInt(e.target.value));
+                        if (releve.verified) {
+                          setReleveWarning('');
+                        }
+                      }}
+                    />
+                    <ReleveOptionLabel>
+                      <ReleveSeriesLabel>Série {releve.series}</ReleveSeriesLabel>
+                      <ReleveStatusBadge $verified={releve.verified}>
+                        {releve.verified ? '✓ Vérifié' : '⏱ En attente'}
+                      </ReleveStatusBadge>
+                    </ReleveOptionLabel>
+                  </ReleveOption>
+                ))}
+              </ReleveSelectionGrid>
+              <p style={{ fontSize: '0.875rem', color: '#666', marginTop: '12px' }}>
+                {selectedReleve && studentReleves.find(r => r.id === selectedReleve)?.verified 
+                  ? `✓ Vous pouvez procéder avec la série ${studentReleves.find(r => r.id === selectedReleve)?.series}`
+                  : 'Sélectionnez un relevé vérifié pour continuer'}
+              </p>
+            </ReleveSelectionCard>
+          )}
+
+          {studentReleves.length === 0 && (
+            <WarningAlert variant="warning" style={{ marginBottom: '2rem' }}>
+              <AlertCircle size={20} style={{ marginRight: '12px' }} />
+              <div>
+                <strong>Aucun relevé de notes uploadé</strong>
+                <p style={{ margin: '4px 0 0 0' }}>
+                  Vous devez d'abord uploader un relevé de notes depuis votre profil avant de pouvoir vous inscrire à un concours.
+                </p>
+              </div>
+            </WarningAlert>
+          )}
+
           <FormSection>
             <SectionTitle>
               <FileText size={20} style={{ marginRight: '0.5rem', color: '#3b82f6' }} />
               Documents requis
             </SectionTitle>
-
-            <FormGroup>
-              <Label>
-                Relevé de note (Transcript)
-                <span className="required">*</span>
-              </Label>
-              <HintText>Téléchargez votre dernier relevé de notes. Format accepté: PDF, JPG, PNG</HintText>
-              <FileUploadArea
-                as="label"
-                $hasFile={!!releveFile}
-              >
-                <input
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={handleReleveUpload}
-                />
-                <FileUploadIcon>
-                  <Upload size={24} />
-                </FileUploadIcon>
-                <div>
-                  <strong>Cliquez pour sélectionner</strong> ou déposez un fichier
-                </div>
-              </FileUploadArea>
-              {releveFile && (
-                <UploadedFile>
-                  <FileName>
-                    <CheckCircle />
-                    {releveFile.name}
-                  </FileName>
-                  <RemoveButton onClick={() => setReleveFile(null)}>×</RemoveButton>
-                </UploadedFile>
-              )}
-            </FormGroup>
 
             <FormGroup>
               <Label>

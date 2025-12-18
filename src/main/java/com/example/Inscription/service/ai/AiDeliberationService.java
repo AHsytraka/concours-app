@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class DeliberationService {
+public class AiDeliberationService {
     
     private final ExamResultRepository examResultRepository;
     private final DeliberationRuleRepository ruleRepository;

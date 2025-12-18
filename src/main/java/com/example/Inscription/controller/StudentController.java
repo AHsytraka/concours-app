@@ -3,6 +3,7 @@ package com.example.Inscription.controller;
 import com.example.Inscription.model.*;
 import com.example.Inscription.repository.*;
 import com.example.Inscription.service.StudentEventRegistrationService;
+import com.example.Inscription.service.StudentReleveDeNotesService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -32,6 +33,7 @@ public class StudentController {
     private final DocumentRepository documentRepository;
     private final StudentEventRegistrationService studentEventRegistrationService;
     private final EventRepository eventRepository;
+    private final StudentReleveDeNotesService releveDeNotesService;
     
     @GetMapping("/profile")
     @Operation(summary = "Get student profile", description = "Get current student's profile information")
@@ -346,5 +348,115 @@ public class StudentController {
         return contentType.equals("application/pdf") ||
                 contentType.equals("image/jpeg") ||
                 contentType.equals("image/png");
+    }
+    
+    // ==================== RELEVE DE NOTES ====================
+    
+    @PostMapping("/releve-de-notes/{series}/upload")
+    @Operation(summary = "Upload releve de notes", description = "Upload releve de notes for a specific Bac series")
+    public ResponseEntity<?> uploadReleveDeNotes(
+            Authentication authentication,
+            @PathVariable BacSeries series,
+            @RequestParam("file") MultipartFile file) {
+        try {
+            String email = (String) authentication.getPrincipal();
+            User student = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new IllegalArgumentException("Student not found"));
+            
+            StudentReleveDeNotes releve = releveDeNotesService.uploadReleveDeNotes(student.getId(), series, file);
+            
+            return ResponseEntity.ok(Map.of(
+                "message", "Releve de notes uploaded successfully",
+                "releveId", releve.getId(),
+                "series", series,
+                "filename", releve.getFilename(),
+                "verified", releve.getVerified(),
+                "uploadDate", releve.getUploadDate()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Upload failed: " + e.getMessage()));
+        }
+    }
+    
+    @GetMapping("/releve-de-notes")
+    @Operation(summary = "Get all releve de notes", description = "Get all uploaded releve de notes for current student")
+    public ResponseEntity<?> getReleveDeNotes(Authentication authentication) {
+        try {
+            String email = (String) authentication.getPrincipal();
+            User student = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new IllegalArgumentException("Student not found"));
+            
+            List<StudentReleveDeNotes> releveList = releveDeNotesService.getStudentReleveDeNotes(student.getId());
+            
+            List<Map<String, Object>> releveData = releveList.stream()
+                    .map(r -> (Map<String, Object>) (Map<String, ?>) Map.of(
+                        "id", r.getId(),
+                        "series", r.getBacSeries(),
+                        "filename", r.getFilename(),
+                        "verified", r.getVerified(),
+                        "uploadDate", r.getUploadDate(),
+                        "verifiedDate", r.getVerifiedDate(),
+                        "fileSize", r.getFileSize()
+                    )).toList();
+            
+            return ResponseEntity.ok(Map.of(
+                "studentId", student.getId(),
+                "studentName", student.getFirstName() + " " + student.getLastName(),
+                "releveCount", releveList.size(),
+                "releves", releveData
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+    
+    @GetMapping("/releve-de-notes/download/{releveId}")
+    @Operation(summary = "Download releve de notes file", description = "Download the actual file for a releve de notes")
+    public ResponseEntity<?> downloadReleveDeNotes(
+            Authentication authentication,
+            @PathVariable Long releveId) {
+        try {
+            String email = (String) authentication.getPrincipal();
+            User student = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new IllegalArgumentException("Student not found"));
+            
+            byte[] fileContent = releveDeNotesService.downloadReleveDeNotes(releveId);
+            
+            return ResponseEntity.ok()
+                    .header("Content-Disposition", "attachment; filename=\"releve.pdf\"")
+                    .body(fileContent);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+    
+    @GetMapping("/releve-de-notes/series/{series}")
+    @Operation(summary = "Get releve de notes for specific series", description = "Get releve de notes for a specific Bac series")
+    public ResponseEntity<?> getReleveDeNotesForSeries(
+            Authentication authentication,
+            @PathVariable BacSeries series) {
+        try {
+            String email = (String) authentication.getPrincipal();
+            User student = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new IllegalArgumentException("Student not found"));
+            
+            var releve = releveDeNotesService.getReleveDeNotes(student.getId(), series);
+            
+            if (releve.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            StudentReleveDeNotes r = releve.get();
+            return ResponseEntity.ok(Map.of(
+                "id", r.getId(),
+                "series", r.getBacSeries(),
+                "filename", r.getFilename(),
+                "verified", r.getVerified(),
+                "uploadDate", r.getUploadDate(),
+                "verifiedDate", r.getVerifiedDate()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
     }
 }
